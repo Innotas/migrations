@@ -26,10 +26,10 @@
     <relativePath />
   </parent>
 
-  <artifactId>mybatis-migrations</artifactId>
+  <artifactId>innotas-mybatis-migrations</artifactId>
   <version>3.3.1</version>
 
-  <name>MyBatis Migrations</name>
+  <name>MyBatis Migrations (Innotas)</name>
   <url>http://www.mybatis.org/migrations/</url>
 
   <contributors>
@@ -37,33 +37,19 @@
       <name>Riccardo Cossu</name>
       <email>riccardo.cossu@gmail.com</email>
     </contributor>
+    <contributor>
+      <name>Andrej Gabara</name>
+      <email>agabara@planview.com</email>
+    </contributor>
   </contributors>
 
   <scm>
-    <url>http://github.com/mybatis/migrations</url>
-    <connection>scm:git:ssh://github.com/mybatis/migrations.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/mybatis/migrations.git</developerConnection>
-    <tag>mybatis-migrations-3.3.1</tag>
+    <url>http://Innotas.github.io/migrations</url>
+    <connection>scm:git:ssh://github.com/Innotas/migrations.git</connection>
+    <tag>Innotas-migrations-3.3.1</tag>
   </scm>
-  <issueManagement>
-    <system>GitHub Issue Management</system>
-    <url>https://github.com/mybatis/migrations/issues</url>
-  </issueManagement>
-  <ciManagement>
-    <system>Travis CI</system>
-    <url>https://travis-ci.org/mybatis/migrations</url>
-  </ciManagement>
-  <distributionManagement>
-    <site>
-      <id>gh-pages</id>
-      <name>Mybatis GitHub Pages</name>
-      <url>git:ssh://git@github.com/mybatis/migrations.git?gh-pages#</url>
-    </site>
-  </distributionManagement>
 
   <properties>
-    <findbugs.onlyAnalyze>org.apache.ibatis.migration</findbugs.onlyAnalyze>
-    <clirr.comparisonVersion>3.2.0</clirr.comparisonVersion>
   </properties>
 
   <dependencies>
