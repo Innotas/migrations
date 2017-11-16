@@ -234,6 +234,20 @@ public abstract class BaseCommand implements Command {
     environment = new Environment(existingEnvironmentFile());
     return environment;
   }
+  
+  /**
+   * Check if the environment specifies a PostgreSQL JDBC driver. If no enviroment file exists, return false;
+   */
+  protected boolean isPostgresTarget() {
+    File f = environmentFile();
+    
+    if (f.exists()) {
+        return environment().getDriver().contains("postgres");
+    }
+    else {
+        return false;
+    }
+  }
 
   protected int getStepCountParameter(int defaultSteps, String... params) {
     final String stringParam = params.length > 0 ? params[0] : null;
@@ -293,7 +307,13 @@ public abstract class BaseCommand implements Command {
   }
 
   protected MigrationLoader getMigrationLoader() {
-    return new FileMigrationLoader(paths.getScriptPath(),
+    /*
+     * [Andrej]
+     * 
+     * For Oracle load from "scripts", for PostgreSQL load from "pgscripts". This is temporary while we're
+     * moving from Oracle to PostgreSQL but need different migrations scripts for each database.
+     */
+    return new FileMigrationLoader(paths.getScriptPath(isPostgresTarget()),
         environment().getScriptCharset(),
         environment().getVariables());
   }

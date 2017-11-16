@@ -1,5 +1,5 @@
 /**
- *    Copyright 2010-2016 the original author or authors.
+ *    Copyright 2010-2017 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -23,15 +23,16 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.ibatis.jdbc.RuntimeSqlException;
-import org.apache.ibatis.jdbc.ScriptRunner;
 import org.apache.ibatis.migration.Change;
 import org.apache.ibatis.migration.ConnectionProvider;
 import org.apache.ibatis.migration.MigrationException;
 import org.apache.ibatis.migration.MigrationLoader;
-import org.apache.ibatis.migration.hook.MigrationHook;
 import org.apache.ibatis.migration.hook.HookContext;
+import org.apache.ibatis.migration.hook.MigrationHook;
 import org.apache.ibatis.migration.options.DatabaseOperationOption;
 import org.apache.ibatis.migration.utils.Util;
+
+import com.innotas.ibatis.feature.InnotasScriptRunner;
 
 public final class UpOperation extends DatabaseOperation {
   private final Integer steps;
@@ -67,7 +68,7 @@ public final class UpOperation extends DatabaseOperation {
       List<Change> migrations = migrationsLoader.getMigrations();
       Collections.sort(migrations);
       int stepCount = 0;
-      ScriptRunner runner = getScriptRunner(connectionProvider, option, printStream);
+      InnotasScriptRunner runner = getScriptRunner(connectionProvider, option, printStream);
 
       Map<String, Object> hookBindings = new HashMap<String, Object>();
 

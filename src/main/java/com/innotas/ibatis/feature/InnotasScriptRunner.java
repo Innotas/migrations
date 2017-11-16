@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2016 the original author or authors.
+ *    Copyright 2010-2017 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -13,23 +13,52 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
-package org.apache.ibatis.jdbc;
+package com.innotas.ibatis.feature;
+
+
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Reader;
+import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.sql.Clob;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
+import java.util.Properties;
+
+import javax.sql.DataSource;
+
+import org.apache.ibatis.jdbc.RuntimeSqlException;
 
 /**
- * @author Clinton Begin
+ * ScriptRunner is in library mybatis, but we need it here. Initially my thought was to extend ScriptRunner, but that class has pretty much 
+ * only private methods, so that option is not available.
+ * 
+ * So, instead of using the ScriptRunner from myBatis, we use our own that starts out as a copy of ScriptRunner.
+ * 
+ * New features we added:
+ * <ul>
+ * <li> Supports @RunJar to run a migration written in Java and packaged as a jar. This migration can run using multiple threads using multiple connections. </li>
+ * <li> Ability to create Java stored procedures in Oracle; the statement needs to be wrapped (see OracleWrapper.sql)
+ * </ul>
+ * 
+ * @author andrej
  */
-public class ScriptRunner {
+public class InnotasScriptRunner {
 
   private static final String LINE_SEPARATOR = System.getProperty("line.separator", "\n");
 
@@ -49,9 +78,15 @@ public class ScriptRunner {
 
   private String delimiter = DEFAULT_DELIMITER;
   private boolean fullLineDelimiter;
-
-  public ScriptRunner(Connection connection) {
+  
+  private DataSource dataSource;
+  
+  /*
+   * [Andrej] We allow migrations that use multiple threads and multiple connections; therefore, we need to a ConnectionProvider
+   */
+  public InnotasScriptRunner(Connection connection, DataSource dataSource) {
     this.connection = connection;
+    this.dataSource = dataSource;
   }
 
   public void setStopOnError(boolean stopOnError) {
@@ -142,6 +177,25 @@ public class ScriptRunner {
       commitConnection();
       checkForMissingLineTerminator(command);
     } catch (Exception e) {
+      if (e instanceof SQLWarning) {
+          /*
+           * [Andrej] debugging this... Getting mysteriouos warning "Warning: execution completed with warning" 
+           * when running migration script 20170822170712_fix_current_asset_udf_values.sql. No idea what the problem
+           * is with this statement. Runs fine in another migration script.
+           */
+          SQLWarning w = (SQLWarning) e;
+          while (w != null) {
+              w.printStackTrace(System.out);
+              System.out.println("*** errorCode: " + w.getErrorCode());
+              System.out.println("*** hasCause: " + w.getCause());
+              w = w.getNextWarning();
+              System.out.println("checking next warning... " + (w != null));
+          }
+      }
+      else {
+          e.printStackTrace(System.out);
+      }
+      
       String message = "Error executing: " + command + ".  Cause: " + e;
       printlnError(message);
       throw new RuntimeSqlException(message, e);
@@ -202,10 +256,17 @@ public class ScriptRunner {
         }
       println(trimmedLine);
     } else if (commandReadyToExecute(trimmedLine)) {
-      command.append(line.substring(0, line.lastIndexOf(delimiter)));
-      command.append(LINE_SEPARATOR);
-      println(command);
-      executeStatement(command.toString());
+        String cs = command.toString();
+        if (cs.contains("@RunJar")) {
+            println(cs);
+            executeJar(cs.toString());
+        }
+        else {
+          command.append(line.substring(0, line.lastIndexOf(delimiter)));
+          //command.append(LINE_SEPARATOR);
+          println(command);
+          executeStatement(command.toString());
+        }
       command.setLength(0);
     } else if (trimmedLine.length() > 0) {
       command.append(line);
@@ -225,36 +286,70 @@ public class ScriptRunner {
 
   private void executeStatement(String command) throws SQLException {
     boolean hasResults = false;
-    Statement statement = connection.createStatement();
-    statement.setEscapeProcessing(escapeProcessing);
     String sql = command;
     if (removeCRs) {
       sql = sql.replaceAll("\r\n", "\n");
     }
-    if (stopOnError) {
-      hasResults = statement.execute(sql);
-      if (throwWarning) {
-        // In Oracle, CRATE PROCEDURE, FUNCTION, etc. returns warning
-        // instead of throwing exception if there is compilation error.
-        SQLWarning warning = statement.getWarnings();
-        if (warning != null) {
-          throw warning;
+    
+    StopWatch watch = new StopWatch();
+    
+    if (requiresOracleWrapperStatement(sql)) {
+        /*
+         * Creating Java stored procedures must be wrapped, otherwise they don't compile properly.
+         */
+        try {
+            executeOracleWrapperStatement(sql);
         }
-      }
-    } else {
-      try {
-        hasResults = statement.execute(sql);
-      } catch (SQLException e) {
-        String message = "Error executing: " + command + ".  Cause: " + e;
-        printlnError(message);
-      }
+        catch (SQLException ex) {
+            if (stopOnError)
+                throw ex;
+            else
+                printlnError("Error executing: " + command + ". Cause: " + ex);
+        }
     }
-    printResults(statement, hasResults);
-    try {
-      statement.close();
-    } catch (Exception e) {
-      // Ignore to workaround a bug in some connection pools
+    else {
+        Statement statement = connection.createStatement();
+        statement.setEscapeProcessing(escapeProcessing);
+        
+        if (stopOnError) {
+          hasResults = statement.execute(sql);
+          if (throwWarning) {
+            // In Oracle, CRATE PROCEDURE, FUNCTION, etc. returns warning
+            // instead of throwing exception if there is compilation error.
+            SQLWarning warning = statement.getWarnings();
+            if (warning != null) {
+                /*
+                 * [Andrej] On Oracle, getting a strange warning when executing the "create table" statement in script
+                 * 20170822170712_fix_current_asset_udf_values.sql. No idea why. Can't reproduce in SQL Developer.
+                 */
+                if (warning.getErrorCode() == 17110 && warning.getMessage().equals("Warning: execution completed with warning")) {
+                    printlnError(warning);
+                }
+                else {
+                  throw warning;
+                }
+            }
+          }
+        } else {
+          try {
+            hasResults = statement.execute(sql);
+          } catch (SQLException e) {
+            String message = "Error executing: " + command + ".  Cause: " + e;
+            printlnError(message);
+          }
+        }
+        printResults(statement, hasResults);
+        try {
+          statement.close();
+        } catch (Exception e) {
+          // Ignore to workaround a bug in some connection pools
+        }
     }
+    
+    
+    watch.stop();
+    watch.printReport();
+
   }
 
   private void printResults(Statement statement, boolean hasResults) {
@@ -302,6 +397,138 @@ public class ScriptRunner {
       errorLogWriter.println(o);
       errorLogWriter.flush();
     }
+  }
+  
+  
+  private void executeJar(String command) throws SQLException {
+      if (!command.startsWith("@RunJar"))
+          throw new RuntimeException("command does not start with '@RunJar'");
+      
+        URL url = null;
+        try {
+            File file = new File("./" + command.substring(7).trim());
+            url = file.toURI().toURL();
+        }
+        catch (MalformedURLException e) {
+            throw new RuntimeException("Invalid URL: " + command.substring(7).trim(), e);
+        }
+        
+        // Create the class loader for the application jar file
+        JarClassLoader cl = new JarClassLoader(url, getClass().getClassLoader());
+        // Get the application's main class name
+        String name = null;
+        try {
+            name = cl.getMainClassName();
+        }
+        catch (IOException e) {
+            throw new RuntimeException("I/O error while loading JAR file:", e);
+        }
+        if (name == null) {
+            throw new RuntimeException("Specified jar file does not contain a 'Main-Class'" + " manifest attribute");
+        }
+
+        try {
+            Class<?> clazz;
+            try {
+                clazz = cl.loadClass(name);
+            }
+            catch (ClassNotFoundException ex) {
+                throw new RuntimeException("Class not found :" + name, ex);
+            }
+            Method m = clazz.getMethod("migrate", java.sql.Connection.class, String.class, Properties.class, DataSource.class);
+            boolean ac = connection.getAutoCommit();
+            try {
+                System.out.println("Running class " + name + " from " + url);
+                StopWatch watch = new StopWatch();
+                
+                // for now, always pass an empty environment. None of our migration scripts make use of this feature, so I'm not
+                // initializing the environment. Ideally, we should create the environment properties from the @RunJar line
+                Properties environment = new Properties();
+                
+                m.invoke(null, connection, command, environment, dataSource);
+                
+                watch.stop();
+                watch.printReport();
+            }
+            finally {
+                try {
+                    connection.setAutoCommit(ac);
+                }
+                catch (SQLException ignore) {}
+            }
+        }
+        catch (NoSuchMethodException e) {
+            throw new RuntimeException("Class does not define a 'migrate' method: " + name, e);
+        }
+        catch (InvocationTargetException e) {
+            if (e.getCause() instanceof SQLException) {
+                throw (SQLException) e.getCause();
+            }
+            else if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            }
+            e.printStackTrace();
+            throw new RuntimeException("Unexpected Error", e);
+        }
+        catch (IllegalAccessException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Unexpected Error", e);
+        }
+
+  }  
+  
+  /**
+   * In order to create Java stored procedures in Oracle, we'll need to wrap the statment.
+   * @author andrej
+   */
+  private String getOracleWrapperStatement() {
+      InputStream in = getClass().getResourceAsStream("OracleWrapper.sql");
+      try {
+          BufferedReader b = new BufferedReader(new InputStreamReader(in));
+          StringWriter w = new StringWriter();
+          PrintWriter pw = new PrintWriter(w);
+          
+          String line = null;
+          while ((line = b.readLine()) != null) {
+              pw.print(line);
+              pw.print("\n");
+          }
+          pw.flush();
+          
+          return w.toString();
+      }
+      catch (IOException ex) {
+          ex.printStackTrace();
+          return null;
+      }
+  }
+  
+  private boolean requiresOracleWrapperStatement(String sql) {
+      return sql.contains("java") &&
+             sql.contains("source") &&
+             sql.contains("create") &&
+             sql.contains("class") &&
+             sql.contains("compile");
+  }
+  
+  /**
+   * To compile "java source", we need to wrap the statement and use PL/SQL DBMS_SQL package.
+   * Figured this out by reverse-engineering SQL Developer -- that's what it does.
+   * (Andrej)
+   */
+  private void executeOracleWrapperStatement(String sql) throws SQLException {
+      Clob clob = connection.createClob();
+      clob.setString(1, sql);
+
+      PreparedStatement ps = connection.prepareStatement(getOracleWrapperStatement());
+
+      try {
+          ps.setClob(1, clob);
+          ps.executeUpdate();
+      }
+      finally {
+          ps.close();
+      }
   }
 
 }

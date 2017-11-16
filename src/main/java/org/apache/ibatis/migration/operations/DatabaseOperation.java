@@ -1,5 +1,5 @@
 /**
- *    Copyright 2010-2016 the original author or authors.
+ *    Copyright 2010-2017 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -24,12 +24,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import javax.sql.DataSource;
+
 import org.apache.ibatis.jdbc.ScriptRunner;
 import org.apache.ibatis.jdbc.SqlRunner;
 import org.apache.ibatis.migration.Change;
 import org.apache.ibatis.migration.ConnectionProvider;
+import org.apache.ibatis.migration.DataSourceConnectionProvider;
 import org.apache.ibatis.migration.MigrationException;
 import org.apache.ibatis.migration.options.DatabaseOperationOption;
+
+import com.innotas.ibatis.feature.InnotasScriptRunner;
 
 public abstract class DatabaseOperation {
 
@@ -89,10 +94,16 @@ public abstract class DatabaseOperation {
     }
   }
 
-  protected ScriptRunner getScriptRunner(ConnectionProvider connectionProvider, DatabaseOperationOption option, PrintStream printStream) {
+  protected InnotasScriptRunner getScriptRunner(ConnectionProvider connectionProvider, DatabaseOperationOption option, PrintStream printStream) {
     try {
+      DataSource ds = null;
+      
+      if (connectionProvider instanceof DataSourceConnectionProvider) {
+          ds = ((DataSourceConnectionProvider) connectionProvider).getDataSource();
+      }
+        
       PrintWriter outWriter = printStream == null ? null : new PrintWriter(printStream);
-      ScriptRunner scriptRunner = new ScriptRunner(connectionProvider.getConnection());
+      InnotasScriptRunner scriptRunner = new InnotasScriptRunner(connectionProvider.getConnection(), ds);
       scriptRunner.setLogWriter(outWriter);
       scriptRunner.setErrorLogWriter(outWriter);
       scriptRunner.setStopOnError(option.isStopOnError());

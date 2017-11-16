@@ -1,5 +1,5 @@
 /**
- *    Copyright 2010-2015 the original author or authors.
+ *    Copyright 2010-2017 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -32,6 +32,14 @@ public class DataSourceConnectionProvider implements ConnectionProvider {
   @Override
   public Connection getConnection() throws SQLException {
     return dataSource.getConnection();
+  }
+  
+  /**
+   * Hack: To run @RunJar, we need a DataSource. Our migrations using @RunJar can run multi-threaded using multiple connections.
+   * @author andrej
+   */
+  public DataSource getDataSource() {
+      return dataSource;
   }
 
 }

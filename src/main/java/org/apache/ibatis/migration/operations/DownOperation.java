@@ -22,16 +22,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.ibatis.jdbc.ScriptRunner;
 import org.apache.ibatis.jdbc.SqlRunner;
 import org.apache.ibatis.migration.Change;
 import org.apache.ibatis.migration.ConnectionProvider;
 import org.apache.ibatis.migration.MigrationException;
 import org.apache.ibatis.migration.MigrationLoader;
-import org.apache.ibatis.migration.hook.MigrationHook;
 import org.apache.ibatis.migration.hook.HookContext;
+import org.apache.ibatis.migration.hook.MigrationHook;
 import org.apache.ibatis.migration.options.DatabaseOperationOption;
 import org.apache.ibatis.migration.utils.Util;
+
+import com.innotas.ibatis.feature.InnotasScriptRunner;
 
 public final class DownOperation extends DatabaseOperation {
   private Integer steps;
@@ -66,7 +67,7 @@ public final class DownOperation extends DatabaseOperation {
         Collections.sort(migrations);
         Collections.reverse(migrations);
         int stepCount = 0;
-        ScriptRunner runner = getScriptRunner(connectionProvider, option, printStream);
+        InnotasScriptRunner runner = getScriptRunner(connectionProvider, option, printStream);
 
         Map<String, Object> hookBindings = new HashMap<String, Object>();
 

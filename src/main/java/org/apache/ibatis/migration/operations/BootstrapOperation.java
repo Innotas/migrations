@@ -1,5 +1,5 @@
 /**
- *    Copyright 2010-2016 the original author or authors.
+ *    Copyright 2010-2017 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -18,12 +18,13 @@ package org.apache.ibatis.migration.operations;
 import java.io.PrintStream;
 import java.io.Reader;
 
-import org.apache.ibatis.jdbc.ScriptRunner;
 import org.apache.ibatis.migration.ConnectionProvider;
 import org.apache.ibatis.migration.MigrationException;
 import org.apache.ibatis.migration.MigrationLoader;
 import org.apache.ibatis.migration.options.DatabaseOperationOption;
 import org.apache.ibatis.migration.utils.Util;
+
+import com.innotas.ibatis.feature.InnotasScriptRunner;
 
 public final class BootstrapOperation extends DatabaseOperation {
   private final boolean force;
@@ -48,7 +49,7 @@ public final class BootstrapOperation extends DatabaseOperation {
         Reader bootstrapReader = migrationsLoader.getBootstrapReader();
         if (bootstrapReader != null) {
           println(printStream, Util.horizontalLine("Applying: bootstrap.sql", 80));
-          ScriptRunner runner = getScriptRunner(connectionProvider, option, printStream);
+          InnotasScriptRunner runner = getScriptRunner(connectionProvider, option, printStream);
           try {
             runner.runScript(bootstrapReader);
           } finally {

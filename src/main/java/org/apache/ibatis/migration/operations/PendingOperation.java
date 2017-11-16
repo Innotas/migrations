@@ -1,5 +1,5 @@
 /**
- *    Copyright 2010-2016 the original author or authors.
+ *    Copyright 2010-2017 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -20,13 +20,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.ibatis.jdbc.ScriptRunner;
 import org.apache.ibatis.migration.Change;
 import org.apache.ibatis.migration.ConnectionProvider;
 import org.apache.ibatis.migration.MigrationException;
 import org.apache.ibatis.migration.MigrationLoader;
 import org.apache.ibatis.migration.options.DatabaseOperationOption;
 import org.apache.ibatis.migration.utils.Util;
+
+import com.innotas.ibatis.feature.InnotasScriptRunner;
 
 public final class PendingOperation extends DatabaseOperation {
 
@@ -42,7 +43,7 @@ public final class PendingOperation extends DatabaseOperation {
       println(printStream, "WARNING: Running pending migrations out of order can create unexpected results.");
       for (Change change : pending) {
         println(printStream, Util.horizontalLine("Applying: " + change.getFilename(), 80));
-        ScriptRunner runner = getScriptRunner(connectionProvider, option, printStream);
+        InnotasScriptRunner runner = getScriptRunner(connectionProvider, option, printStream);
         try {
           runner.runScript(migrationsLoader.getScriptReader(change, false));
         } finally {

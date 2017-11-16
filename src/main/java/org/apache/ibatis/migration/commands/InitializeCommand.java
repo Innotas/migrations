@@ -1,5 +1,5 @@
 /**
- *    Copyright 2010-2015 the original author or authors.
+ *    Copyright 2010-2017 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ public final class InitializeCommand extends BaseCommand {
   @SuppressWarnings("serial")
   public void execute(String... params) {
     final File basePath = paths.getBasePath();
-    final File scriptPath = paths.getScriptPath();
+    final File scriptPath = paths.getScriptPath(isPostgresTarget());
 
     printStream.println("Initializing: " + basePath);
 

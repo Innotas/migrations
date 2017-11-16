@@ -1,5 +1,5 @@
 /**
- *    Copyright 2010-2016 the original author or authors.
+ *    Copyright 2010-2017 the original author or authors.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 package org.apache.ibatis.migration.options;
 
 import java.io.File;
+
+import org.apache.ibatis.migration.Environment;
 
 import static org.apache.ibatis.migration.utils.Util.file;
 
@@ -37,7 +39,27 @@ public class SelectedPaths {
   public File getScriptPath() {
     return scriptPath == null ? file(basePath, "./scripts") : scriptPath;
   }
-
+  
+  /**
+   * If the JDBC driver in the environment is a PostgreSQL driver, then return "pgscripts" instead of
+   * "scripts".
+   * 
+   * This allows us to have Oracle migrations in "scripts" and parallel to that PostgreSQL migrations in "pgscripts"
+   * 
+   * Once we've migrated from Oracle to PostgreSQL, we can go back to using one and only one scripts directory.
+   * 
+   * [Andrej Nov 15 2017]
+   */
+  public File getScriptPath(boolean isPostgresTargetDatabase) {
+      if (isPostgresTargetDatabase) {
+          return scriptPath == null ? file(basePath, "./pgscripts") : scriptPath;
+      }
+      else {
+          return getScriptPath();
+      }
+      
+  }
+  
   public File getDriverPath() {
     return driverPath == null ? file(basePath, "./drivers") : driverPath;
   }

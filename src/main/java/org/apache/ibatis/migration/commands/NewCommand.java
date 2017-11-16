@@ -42,7 +42,7 @@ public final class NewCommand extends BaseCommand {
     String filename = getNextIDAsString() + "_" + description.replace(' ', '_') + ".sql";
 
     if (options.getTemplate() != null) {
-      copyExternalResourceTo(options.getTemplate(), Util.file(paths.getScriptPath(), filename), variables);
+      copyExternalResourceTo(options.getTemplate(), Util.file(paths.getScriptPath(isPostgresTarget()), filename), variables);
     } else {
       try {
         String customConfiguredTemplate = getPropertyOption(CUSTOM_NEW_COMMAND_TEMPLATE_PROPERTY);
@@ -65,7 +65,7 @@ public final class NewCommand extends BaseCommand {
   private void copyDefaultTemplate(Properties variables, String filename) {
     copyResourceTo(
         "org/apache/ibatis/migration/template_migration.sql",
-        Util.file(paths.getScriptPath(), filename),
+        Util.file(paths.getScriptPath(isPostgresTarget()), filename),
         variables);
   }
 }
